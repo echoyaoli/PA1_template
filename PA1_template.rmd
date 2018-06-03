@@ -1,0 +1,146 @@
+---
+title: "PA1_template.rmd"
+author: "Yao LI"
+date: "June 3, 2018"
+output:
+  html_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+This is an R Markdown document. It is a assignment of Coursera.
+This assignment makes use of data from a personal activity monitoring device. This device collects data at 5 minute intervals through out the day. The data consists of two months of data from an anonymous individual collected during the months of October and November, 2012 and include the number of steps taken in 5 minute intervals each day.
+
+## Loading and processing data
+
+```{r activity}
+library(ggplot2)
+library(dplyr)
+activity <- read.csv("activity.csv")
+str(activity)
+summary(activity)
+```
+
+There are NA's in the dataframe, at this stage, we just leave as what is it.
+
+## What is mean total number of steps taken per day?
+We can calculate the mean and median total number of steps taken per day.
+
+```{r}
+total_step_per_day <- activity %>%
+  group_by(date)%>%
+  summarise(total_step_per_day=sum(steps))
+head(total_step_per_day)
+mean_total_step_per_day <- mean(total_step_per_day$total_step_per_day,na.rm = T)
+median_total_step_per_day <- median(total_step_per_day$total_step_per_day,na.rm = T)
+cat("The mean of total number of steps taken per day is ",mean_total_step_per_day,".",
+    " The median of total number of steps taken per day is ",median_total_step_per_day,".",sep = "")
+```
+
+Then we can plot a histogram of total steps taken per day, the code will remove the NA's in order to plot the histogram.
+
+```{r}
+ggplot(total_step_per_day,aes(x=total_step_per_day))+
+  geom_histogram()+
+  scale_y_continuous(breaks = seq(0,10,1))+
+  labs(title="Total number of steps taken per day",x="steps",y="days")+
+  theme_minimal()
+```
+
+##What is the average daily activity pattern?
+Next, analyse the daily activity pattern. process the date frame according to interval. Remove rows with NA.
+
+```{r}
+activity_pattern <- activity[complete.cases(activity),] %>%
+  group_by(interval) %>%
+  summarise(avg_steps=round(mean(steps)))
+```
+
+The time series plot of daily activity pattern.
+
+```{r}
+ggplot(activity_pattern,aes(x=interval,y=avg_steps))+
+  geom_line()+
+  labs(title="Daily activity patter",x="Time interval",y="Average steps")+
+  theme_minimal()
+```
+
+And we can find out which 5-minute interval, on average across all the days in the dataset, contains the maximum number of steps?
+
+```{r}
+max_step <- activity_pattern$interval[which.max(activity_pattern$avg_steps)]
+cat("The 5-minute interval, on average across all the days in the dataset, contains the maximum number of steps is ",max_step,".",sep="")
+```
+
+##Imputing missing values
+Now we will detect the missing values and imput them with average value.
+First, report how many missing values in the data set.
+
+```{r}
+miss <- sum(!complete.cases(activity))
+cat("Total number of missing value in the dataset is ",miss,".",sep = "")
+```
+
+Second, replace NA with average step of that interval calculated from 61 days. Create a new dataframe.
+
+```{r}
+activity_1 <- activity
+new_activity <- merge(activity_1,activity_pattern)
+new_activity$steps <- coalesce(new_activity$steps,as.integer(new_activity$avg_steps))
+```
+
+Then we will examine is there any changes on mean and median after replacing the NA.
+
+```{r}
+new_total_step_per_day <- new_activity %>%
+  group_by(date)%>%
+  summarise(total_step_per_day=sum(steps))
+head(new_total_step_per_day)
+new_mean_total_step_per_day <- mean(new_total_step_per_day$total_step_per_day)
+new_median_total_step_per_day <- median(new_total_step_per_day$total_step_per_day)
+cat("The mean of total number of steps taken per day is ",new_mean_total_step_per_day,".",
+    " The median of total number of steps taken per day is ",new_median_total_step_per_day,".",sep = "")
+```
+
+We can see that there are only few steps different.
+Finally, we plot a new histogram of total steps taken.
+
+```{r}
+ggplot(new_total_step_per_day,aes(x=total_step_per_day))+
+  geom_histogram()+
+  scale_y_continuous(breaks = seq(0,13,1))+
+  labs(title="Total number of steps taken per day",x="steps",y="days")+
+  theme_minimal()
+```
+
+##Are there differences in activity patterns between weekdays and weekends?
+To explore the differences in activity patterns between weekdays and weekends. We first need to identify the which day is it in the week.
+
+```{r}
+weekday <-c("Monday","Tuesday","Wednesday","Thursday","Friday")
+new_activity$weekday <- factor(weekdays(as.Date(new_activity$date)) %in% weekday,
+                                levels = c(T,F),labels = c("weekday","weekend"))
+new_activity <- new_activity%>%select(steps,date,interval,weekday)
+head(new_activity)
+```
+
+Then we make a panel plot containing a time series plot of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all weekday days or weekend days (y-axis).
+
+```{r}
+new_activity_pattern <- new_activity %>%
+  group_by(weekday,interval) %>%
+  summarise(avg_step=round(mean(steps)))
+ggplot(new_activity_pattern,aes(x=interval,y=avg_step,color=weekday))+
+  geom_line()+
+  facet_wrap(~weekday,ncol = 1)+
+  labs(title="Daily activity pattern (new)",x="Time interval",y="Average steps")+
+  theme_minimal()+
+  theme(legend.position = 'none',strip.text.x = element_text(size=12,face = "bold"),
+        strip.background = element_rect(color = "black",fill = "grey"))
+```
+
+We can see thare are slightly different pattern in acitity from weekday days to weekend days.
